@@ -4,8 +4,13 @@ import React from 'react'
 import { RouterProvider } from 'react-router-dom'
 import router from './router'
 
-createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>
-)
+// Đảm bảo khởi tạo MSAL trước khi dùng bất kỳ API nào
+async function main() {
+  createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <RouterProvider router={router} />
+    </React.StrictMode>
+  );
+}
+
+main();

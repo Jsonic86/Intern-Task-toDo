@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { CheckCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import type { TodoProps } from "../../constant/todo.type";
 import { todoService } from "../../service/todo";
+import Upload from "./Upload";
 
 
 
@@ -15,6 +16,7 @@ const Todo = () => {
     const [todosTemp, setTodosTemp] = useState<TodoProps[]>([]);
     const [newTodo, setNewTodo] = useState<string>('');
     const [filter, setFilter] = useState<'all' | 'completed' | 'incomplete'>('all');
+    const [incompleteCount, setIncompleteCount] = useState<number>(0);
     const handleDeleteTodo = (id: string) => {
         if (!window.confirm('Are you sure you want to delete this todo?')) {
             return;
@@ -107,14 +109,14 @@ const Todo = () => {
                         danger
                         shape="circle"
                         icon={<CloseOutlined />}
-                        onClick={() => handleDeleteTodo(record._id!)}
+                        onClick={() => handleDeleteTodo(record.id!)}
                         title="Delete"
                     />
                     <Button
                         type="text"
                         shape="circle"
                         icon={<CheckCircleOutlined style={{ color: record.completed ? '#52c41a' : '#1890ff' }} />}
-                        onClick={() => handleCompleteTodo(record._id!)}
+                        onClick={() => handleCompleteTodo(record.id!)}
                         disabled={record.completed}
                         title="Mark as completed"
                     />
@@ -137,6 +139,13 @@ const Todo = () => {
     useEffect(() => {
         fetchTodos();
     }, [filter])
+    useEffect(() => {
+        const countTasks = async () => {
+            const data = await todoService.getTodos(undefined);
+            setIncompleteCount(data?.data.filter((todo: any) => !todo.completed).length);
+        }
+        countTasks();
+    }, [todosTemp])
     return (
         <>
             {contextHolder}
@@ -154,11 +163,7 @@ const Todo = () => {
                     Todo List
                 </div>
                 <div style={{ display: 'flex', gap: 16 }}>
-                    <Select onChange={handleChangeStatus} style={{ width: 140 }} defaultValue={'all'}>
-                        <Select.Option value="all">All</Select.Option>
-                        <Select.Option value="completed">Completed</Select.Option>
-                        <Select.Option value="incomplete">Incomplete</Select.Option>
-                    </Select>
+
                     <Button type="primary" onClick={showModal}>
                         Add todo
                     </Button>
@@ -191,9 +196,36 @@ const Todo = () => {
                     columns={columns}
                     dataSource={todosTemp}
                     size="middle"
-                    rowKey="_id"
+                    rowKey="id"
                     pagination={{ pageSize: 6 }}
+
                 />
+            </div>
+            {/* <Upload /> */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'end',
+                padding: 16,
+                background: '#fafafa',
+                borderRadius: 8,
+                boxShadow: '0 2px 8px #f0f1f2',
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                justifyItems: 'center',
+                gap: 20
+            }}>
+                <span><strong>Incomplete task :</strong> {incompleteCount}</span>
+                <div style={{ display: 'flex', gap: 16 }}>
+
+                    <Select onChange={handleChangeStatus} style={{ width: 140 }} defaultValue={'all'}>
+                        <Select.Option value="all">All</Select.Option>
+                        <Select.Option value="completed">Completed</Select.Option>
+                        <Select.Option value="incomplete">Incomplete</Select.Option>
+                    </Select>
+                </div>
             </div>
         </>
     )
