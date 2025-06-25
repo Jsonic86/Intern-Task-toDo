@@ -4,11 +4,29 @@ import { CheckCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import type { TodoProps } from "../../constant/todo.type";
 import { todoService } from "../../service/todo";
 import Upload from "./Upload";
+import { setLanguage } from "../../store/languageSlice";
+import { useTranslation } from "react-i18next";
+import { useDispatch, useSelector } from "react-redux";
+import i18n from "../../i18n"; // Import i18n instance directly
+import type { RootState } from "../../store";
+import { MsalProvider, useMsal } from "@azure/msal-react";
+import { loginRequest, msalInstance } from "../../setup/msalConfig";
+import { Profile } from "./Profile";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
 
 
-
+type ProfileData = {
+    displayName: string;
+    userPrincipalName: string;
+    [key: string]: any;
+};
 
 const Todo = () => {
+    const { t, i18n } = useTranslation();
+    const { instance, accounts } = useMsal();
+    const [siteId, setSiteId] = useState<string | null>(null);
+    const [driveId, setDriveId] = useState<string | null>(null);
+    const [profileData, setProfileData] = useState<ProfileData | null>(null);
     const [api, contextHolder] = notification.useNotification();
     const [todos, setTodos] = useState<TodoProps[]>([
 
@@ -18,7 +36,7 @@ const Todo = () => {
     const [filter, setFilter] = useState<'all' | 'completed' | 'incomplete'>('all');
     const [incompleteCount, setIncompleteCount] = useState<number>(0);
     const handleDeleteTodo = (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this todo?')) {
+        if (!window.confirm(t('confirmDelete'))) {
             return;
         }
         const response = todoService.deleteTodo(id);
@@ -40,46 +58,112 @@ const Todo = () => {
             placement: 'topRight',
         });
     };
-    const handleOk = () => {
+    const handleOk = async () => {
         if (newTodo.trim() === '') {
             return;
         }
-        const response = todoService.saveTodos(
+        const response = await todoService.saveTodos(
             newTodo
         );
-        response.then((res) => {
-            if (res?.data.success) {
-                openNotification('Todo added successfully');
-                setNewTodo('');
-                fetchTodos();
-            }
-        })
+        if (!response?.data.success) {
+            openNotification('Failed to add todo');
+            return;
+        }
+        openNotification('Todo added successfully');
+        setNewTodo('');
+        fetchTodos();
         setIsModalOpen(false);
     };
 
     const handleCancel = () => {
         setIsModalOpen(false);
     };
-    const handleCompleteTodo = (id: string) => {
-        if (!window.confirm('Are you sure you want to complete this todo?')) {
+    const handleCompleteTodo = async (id: string) => {
+        if (!window.confirm(t('confirmComplete'))) {
             return;
         }
-        const response = todoService.updateTodoStatus(id);
-
-        response.then((res) => {
-            if (res?.data.success) {
-                fetchTodos();
-                openNotification('Todo completed successfully');
-            }
-        })
+        const response = await todoService.updateTodoStatus(id);
+        if (!response?.data.success) {
+            openNotification('Failed to complete todo');
+            return;
+        }
+        fetchTodos();
+        openNotification('Todo completed successfully');
     }
     const handleChangeStatus = (value: 'all' | 'completed' | 'incomplete') => {
 
         setFilter(value);
     }
+    const fetchProfileAndIds = async (taskId?: string) => {
+        try {
+            const response = await instance.acquireTokenSilent({
+                ...loginRequest,
+                account: accounts[0],
+            });
+
+            // Lấy profile
+            const graphResponse = await fetch(
+                "https://graph.microsoft.com/v1.0/me",
+                {
+                    headers: {
+                        Authorization: `Bearer ${response.accessToken}`,
+                    },
+                }
+            );
+            const data = await graphResponse.json();
+            setProfileData(data);
+
+            // Lấy siteId
+            const siteResponse = await fetch(
+                "https://graph.microsoft.com/v1.0/sites/1work.sharepoint.com:/sites/intern-data",
+                {
+                    headers: {
+                        Authorization: `Bearer ${response.accessToken}`,
+                    },
+                }
+            );
+            const siteData = await siteResponse.json();
+            if (siteData.error) throw new Error(siteData.error.message);
+            setSiteId(siteData.id);
+
+            // Lấy driveId cho thư viện Attachments202505
+            const driveResponse = await fetch(
+                `https://graph.microsoft.com/v1.0/sites/${siteData.id}/drives`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${response.accessToken}`,
+                    },
+                }
+            );
+            const driveData = await driveResponse.json();
+            if (driveData.error) throw new Error(driveData.error.message);
+            const targetDrive = driveData.value.find(
+                (drive: any) => drive.name === `sonni${taskId ? '/' + taskId : ''}` // Thay đổi tên thư viện nếu cần
+            );
+            if (!targetDrive)
+                throw new Error("Không tìm thấy thư viện ");
+            setDriveId(targetDrive.id);
+        } catch (error) {
+            if (error instanceof InteractionRequiredAuthError) {
+                instance.acquireTokenRedirect(loginRequest);
+            } else {
+                console.error(error);
+                // setUploadStatus(`Lỗi: ${(error as any).message}`);
+            }
+        }
+    };
+    // Lấy profile và site/drive IDs
+    useEffect(() => {
+        console.log("accounts:", accounts);
+
+
+        if (accounts && accounts.length > 0) {
+            fetchProfileAndIds();
+        }
+    }, [accounts, instance]);
     const columns: TableColumnsType<TodoProps> = [
         {
-            title: 'Title',
+            title: t('title'),
             dataIndex: 'title',
             key: 'title',
             render: (text) => (
@@ -87,7 +171,7 @@ const Todo = () => {
             ),
         },
         {
-            title: 'Completed',
+            title: t('completed'),
             dataIndex: 'completed',
             key: 'completed',
             render: (text, record) => (
@@ -100,10 +184,20 @@ const Todo = () => {
             ),
         },
         {
-            title: 'Actions',
+            title: 'File',
+            dataIndex: 'file',
+            key: 'file',
+            render: (text, record) => (
+                <span >
+                    <Profile taskId={record.id} accounts={accounts} driveId={driveId} instance={instance} siteId={siteId} profileData={profileData!} />
+                </span>
+            ),
+        },
+        {
+            title: t('action'),
             key: 'actions',
             render: (text, record) => (
-                <span style={{ display: 'flex', gap: 12 }}>
+                <span className="flex gap-4">
                     <Button
                         type="text"
                         danger
@@ -136,6 +230,16 @@ const Todo = () => {
             console.error('Failed to fetch todos:', error);
         }
     }
+
+    const dispatch = useDispatch();
+    const lang = useSelector((state: RootState) => state.language.currentLang);
+
+    const changeLang = (lng: string) => {
+        dispatch(setLanguage(lng));
+        i18n.changeLanguage(lng);
+    };
+
+
     useEffect(() => {
         fetchTodos();
     }, [filter])
@@ -148,85 +252,68 @@ const Todo = () => {
     }, [todosTemp])
     return (
         <>
-            {contextHolder}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: 16,
-                background: '#fafafa',
-                borderRadius: 8,
-                marginBottom: 24,
-                boxShadow: '0 2px 8px #f0f1f2'
-            }}>
-                <div style={{ fontSize: 24, fontWeight: 700, color: '#1890ff' }}>
-                    Todo List
+            <MsalProvider instance={msalInstance}>
+                {contextHolder}
+                <div className="flex items-center justify-between p-4 bg-#fafafa rounded-xl mb-6 shadow-lg" >
+                    <div className="text-2xl font-bold text-#1890ff" >
+                        {t('todoList')}
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <Button onClick={() => changeLang('en')} style={{ marginRight: '8px' }}>
+                            English
+                        </Button>
+                        <Button onClick={() => changeLang('vi')}>
+                            Tiếng Việt
+                        </Button>
+                        <Button type="primary" onClick={showModal}>
+                            {t('addTodo')}
+                        </Button>
+                    </div>
                 </div>
-                <div style={{ display: 'flex', gap: 16 }}>
+                <Modal
+                    title={t('addTodo')}
+                    closable={{ 'aria-label': 'Custom Close Button' }}
+                    open={isModalOpen}
+                    onOk={handleOk}
+                    onCancel={handleCancel}
+                >
+                    <Input
+                        placeholder="Enter todo title"
+                        className="w-full"
+                        value={newTodo}
+                        onChange={(e) => setNewTodo(e.target.value)}
+                        style={{ marginBottom: 12 }}
+                    />
+                </Modal>
+                <div
+                    className="max-w-3xl my-0  bg-#fff shadow-lg rounded-lg p-6 mx-auto "
+                >
+                    <Table<TodoProps>
+                        columns={columns}
+                        dataSource={todosTemp}
+                        size="middle"
+                        rowKey="id"
+                        pagination={{ pageSize: 6 }}
 
-                    <Button type="primary" onClick={showModal}>
-                        Add todo
-                    </Button>
+                    />
                 </div>
-            </div>
-            <Modal
-                title="Add Todo"
-                closable={{ 'aria-label': 'Custom Close Button' }}
-                open={isModalOpen}
-                onOk={handleOk}
-                onCancel={handleCancel}
-            >
-                <Input
-                    placeholder="Enter todo title"
-                    className="w-full"
-                    value={newTodo}
-                    onChange={(e) => setNewTodo(e.target.value)}
-                    style={{ marginBottom: 12 }}
-                />
-            </Modal>
-            <div style={{
-                maxWidth: 700,
-                margin: '0 auto',
-                background: '#fff',
-                borderRadius: 8,
-                boxShadow: '0 2px 8px #f0f1f2',
-                padding: 24
-            }}>
-                <Table<TodoProps>
-                    columns={columns}
-                    dataSource={todosTemp}
-                    size="middle"
-                    rowKey="id"
-                    pagination={{ pageSize: 6 }}
 
-                />
-            </div>
-            {/* <Upload /> */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'end',
-                padding: 16,
-                background: '#fafafa',
-                borderRadius: 8,
-                boxShadow: '0 2px 8px #f0f1f2',
-                position: 'fixed',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                justifyItems: 'center',
-                gap: 20
-            }}>
-                <span><strong>Incomplete task :</strong> {incompleteCount}</span>
-                <div style={{ display: 'flex', gap: 16 }}>
 
-                    <Select onChange={handleChangeStatus} style={{ width: 140 }} defaultValue={'all'}>
-                        <Select.Option value="all">All</Select.Option>
-                        <Select.Option value="completed">Completed</Select.Option>
-                        <Select.Option value="incomplete">Incomplete</Select.Option>
-                    </Select>
+                {/* <Upload /> */}
+                <div
+                    className="flex items-center justify-end p-4 bg-#fafafa rounded-xl shadow-lg mt-6 fixed bottom-0 left-0 right-0 gap-5"
+                >
+                    <span><strong>{t('incompletedCount')} :</strong> {incompleteCount}</span>
+                    <div className="flex items-center gap-4">
+
+                        <Select onChange={handleChangeStatus} style={{ width: 140 }} defaultValue={'all'}>
+                            <Select.Option value="all"> {t('all')}</Select.Option>
+                            <Select.Option value="completed"> {t('completed')}</Select.Option>
+                            <Select.Option value="incomplete">{t('incomplete')}</Select.Option>
+                        </Select>
+                    </div>
                 </div>
-            </div>
+            </MsalProvider>
         </>
     )
 }

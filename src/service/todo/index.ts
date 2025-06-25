@@ -45,10 +45,10 @@ import { handleAxiosError } from "../../ulti/handleAxiosError";
 const getTodos = async (search: boolean | undefined) => {
     try {
         if (search === undefined || search === null) {
-            const data = await CustomAxios.get('/todos');
+            const data = await CustomAxios.get('/task');
             return data.data;
         }
-        const data = await CustomAxios.get('/todos?completed=' + search);
+        const data = await CustomAxios.get('/task?filterComplete=' + search);
         return data.data;
     }
     catch (error) {
@@ -57,7 +57,7 @@ const getTodos = async (search: boolean | undefined) => {
 }
 const saveTodos = async (newTodo: string) => {
     try {
-        const data = await CustomAxios.post('/todos/create', { title: newTodo });
+        const data = await CustomAxios.post('/task', { title: newTodo });
         return data;
     } catch (error) {
         handleAxiosError(error)
@@ -65,7 +65,7 @@ const saveTodos = async (newTodo: string) => {
 }
 const deleteTodo = async (id: string) => {
     try {
-        const data = await CustomAxios.delete(`/todos/${id}`);
+        const data = await CustomAxios.delete(`/task/${id}`);
         return data;
     } catch (error) {
         handleAxiosError(error)
@@ -73,7 +73,7 @@ const deleteTodo = async (id: string) => {
 }
 const updateTodoStatus = async (id: string) => {
     try {
-        const data = await CustomAxios.put(`/todos/${id}`, { completed: true });
+        const data = await CustomAxios.put(`/task/${id}`, { completed: true });
         return data;
     } catch (error) {
         handleAxiosError(error)
@@ -83,6 +83,5 @@ export const todoService = {
     getTodos,
     saveTodos,
     deleteTodo,
-    // getTodosByFiler,
     updateTodoStatus
 }

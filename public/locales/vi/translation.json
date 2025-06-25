@@ -1,0 +1,14 @@
+{
+    "hello": "Xin chào!",
+    "welcome": "Chào mừng bạn đến với ứng dụng của tôi",
+    "todoList": "Danh sách công việc",
+    "addTodo": "Thêm Công việc",
+    "completed": "Hoàn thành",
+    "incomplete": "Chưa hoàn thành",
+    "all": "Tất cả",
+    "incompletedCount": "Số lượng Công việc chưa hoàn thành",
+    "title": "Công việc",
+    "action": "Thao tác",
+    "confirmDelete": "Bạn có chắc chắn muốn xóa công việc này không?",
+    "confirmComplete": "Bạn có chắc chắn muốn đánh dấu công việc này là đã hoàn thành không?"
+}
