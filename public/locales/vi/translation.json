@@ -10,5 +10,22 @@
     "title": "Công việc",
     "action": "Thao tác",
     "confirmDelete": "Bạn có chắc chắn muốn xóa công việc này không?",
-    "confirmComplete": "Bạn có chắc chắn muốn đánh dấu công việc này là đã hoàn thành không?"
+    "confirmComplete": "Bạn có chắc chắn muốn đánh dấu công việc này là đã hoàn thành không?",
+    "nofiles": "Chưa có file nào",
+    "upload": "Tải lên",
+    "downloadError": "Lỗi tải xuóng",
+    "downloadSuccess": " Tải xuống file thành công",
+    "deleteError": " Lỗi xóa file",
+    "deleteSuccess": " Xóa file thành công",
+    "upload.error": " Lỗi tải lên file",
+    "upload.success": " Tải lên file thành công",
+    "upload.failed": " Tải lên file thất bại",
+    "waiting": "Đang lấy thông tin site, vui lòng đợi...",
+    "files": "Tệp tin",
+    "addFailed": " Thêm công việc thất bại",
+    "addSuccess": " Thêm công việc thành công",
+    "deleteFailed": " Xóa công việc thất bại",
+    "deleteTodoSuccess": " Xóa công việc thành công",
+    "completeFailed": " Hoàn thành công việc thất bại",
+    "completeSuccess": " Hoàn thành công việc thành công"
 }

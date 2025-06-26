@@ -10,5 +10,22 @@
     "title": "Title",
     "action": "Actions",
     "confirmDelete": "Are you sure you want to delete this todo?",
-    "confirmComplete": "Are you sure you want to mark this todo as completed?"
+    "confirmComplete": "Are you sure you want to mark this todo as completed?",
+    "nofiles": " No files found",
+    "upload": "Upload",
+    "downloadError": " Error downloading file",
+    "downloadSuccess": " File downloaded successfully",
+    "deleteError": " Error deleting file",
+    "deleteSuccess": " File deleted successfully",
+    "upload.error": " Error uploading file",
+    "upload.success": " File uploaded successfully",
+    "upload.failed": " File upload failed",
+    "waiting": " Waiting for gettiing profile",
+    "files": "Files",
+    "addFailed": " Add todo failed",
+    "addSuccess": " Add todo successfully",
+    "deleteFailed": " Delete todo failed",
+    "deleteTodoSuccess": " Delete todo successfully",
+    "completeFailed": " Complete todo failed",
+    "completeSuccess": " Complete todo successfully"
 }

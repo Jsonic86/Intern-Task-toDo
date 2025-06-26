@@ -3,11 +3,9 @@ import { useEffect, useState } from "react";
 import { CheckCircleOutlined, CloseOutlined } from '@ant-design/icons';
 import type { TodoProps } from "../../constant/todo.type";
 import { todoService } from "../../service/todo";
-import Upload from "./Upload";
 import { setLanguage } from "../../store/languageSlice";
 import { useTranslation } from "react-i18next";
 import { useDispatch, useSelector } from "react-redux";
-import i18n from "../../i18n"; // Import i18n instance directly
 import type { RootState } from "../../store";
 import { MsalProvider, useMsal } from "@azure/msal-react";
 import { loginRequest, msalInstance } from "../../setup/msalConfig";
@@ -42,7 +40,7 @@ const Todo = () => {
         const response = todoService.deleteTodo(id);
         response.then((res) => {
             if (res?.data.success) {
-                openNotification('Todo deleted successfully');
+                openNotification(t('deleteTodoSuccess'));
                 fetchTodos();
             }
         })
@@ -66,10 +64,10 @@ const Todo = () => {
             newTodo
         );
         if (!response?.data.success) {
-            openNotification('Failed to add todo');
+            openNotification(t('addFailed'));
             return;
         }
-        openNotification('Todo added successfully');
+        openNotification(t('addSuccess'));
         setNewTodo('');
         fetchTodos();
         setIsModalOpen(false);
@@ -84,11 +82,11 @@ const Todo = () => {
         }
         const response = await todoService.updateTodoStatus(id);
         if (!response?.data.success) {
-            openNotification('Failed to complete todo');
+            openNotification(t('completeFailed'));
             return;
         }
         fetchTodos();
-        openNotification('Todo completed successfully');
+        openNotification(t('completeSuccess'));
     }
     const handleChangeStatus = (value: 'all' | 'completed' | 'incomplete') => {
 
@@ -184,7 +182,7 @@ const Todo = () => {
             ),
         },
         {
-            title: 'File',
+            title: t('files'),
             dataIndex: 'file',
             key: 'file',
             render: (text, record) => (
@@ -286,15 +284,15 @@ const Todo = () => {
                     />
                 </Modal>
                 <div
-                    className="max-w-3xl my-0  bg-#fff shadow-lg rounded-lg p-6 mx-auto "
+                    className="max-w-full my-0  bg-#fff shadow-lg rounded-lg p-6 mx-auto "
                 >
                     <Table<TodoProps>
                         columns={columns}
                         dataSource={todosTemp}
                         size="middle"
                         rowKey="id"
-                        pagination={{ pageSize: 6 }}
-
+                        pagination={{ pageSize: 4 }}
+                        scroll={{ y: 300 }}
                     />
                 </div>
 

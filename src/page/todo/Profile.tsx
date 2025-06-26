@@ -2,9 +2,12 @@ import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "../../setup/msalConfig";
 import { useEffect, useState } from "react";
 import { InteractionRequiredAuthError } from "@azure/msal-browser";
-import { Button, Upload, message, Collapse, List, Space, Typography } from "antd";
+import { Button, Upload, message, Collapse, List, Space, Typography, notification } from "antd";
 import { UploadOutlined, FileTextOutlined, DownloadOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 import { get } from "@pnp/queryable";
+import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
+import type { RootState } from "../../store";
 
 const { Panel } = Collapse;
 const { Text } = Typography;
@@ -16,12 +19,28 @@ type ProfileData = {
 };
 
 const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: { taskId: string, instance: any, accounts: any, siteId: string | null, driveId: string | null, profileData: ProfileData }) => {
+    const { t, i18n } = useTranslation();
+    const [api, contextHolder] = notification.useNotification();
     const [fileList, setFileList] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    const lang = useSelector((state: RootState) => state.language.currentLang);
 
+    const changeLang = (lng: string) => {
+        i18n.changeLanguage(lng);
+    };
+    useEffect(() => {
+        changeLang(lang);
+    }, [lang]);
+    const openNotification = (message: string) => {
+        api.info({
+            message,
+            placement: 'topRight',
+        });
+    };
     const uploadFile = async (file: File) => {
         if (!siteId || !driveId) {
-            message.error("Đang lấy thông tin site, vui lòng đợi...");
+            message.error(t("error.waiting"));
+            openNotification(t("error.waiting"));
             return false;
         }
 
@@ -60,16 +79,19 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
             });
 
             if (uploadResult.ok) {
-                message.success("Upload file thành công!");
+                message.success(t("upload.success"));
+                openNotification(t("upload.success"));
                 getFileList(); // Refresh file list
                 return true;
             } else {
                 const errorData = await uploadResult.json();
-                message.error(`Upload thất bại: ${errorData.error.message}`);
+                message.error(`${t("upload.fail")}: ${errorData.error.message}`);
+                openNotification(`${t("upload.fail")}: ${errorData.error.message}`);
                 return false;
             }
         } catch (error) {
-            message.error(`Lỗi upload: ${(error as any).message}`);
+            message.error(`${t("upload.error")}: ${(error as any).message}`);
+            openNotification(`${t("upload.error")}: ${(error as any).message}`);
             return false;
         } finally {
             setLoading(false);
@@ -77,7 +99,7 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
     };
 
     const getFileList = async () => {
-        if (!siteId || !driveId) return;
+        if (!siteId || !driveId || !taskId) return;
 
         try {
             const response = await instance.acquireTokenSilent({
@@ -119,14 +141,16 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
 
             if (res.status === 204) {
                 getFileList(); // Refresh file list
-                message.success("Xóa thành công!");
+                message.success(t("deleteSuccess"));
+                openNotification(t("deleteSuccess"));
             } else {
                 const err = await res.json().catch(() => res.statusText);
                 throw new Error(err);
             }
         } catch (e) {
             console.error(e);
-            message.error("Lỗi xóa file");
+            message.error(t("deleteError"));
+            openNotification(t("deleteError"));
         }
     };
     const downloadFile = async (fileId: string, fileName: string) => {
@@ -151,10 +175,12 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
-                message.success("Download thành công!");
+                message.success(t("downloadSuccess"));
+                openNotification(t("downloadSuccess"));
             }
         } catch (error) {
-            message.error("Lỗi download file");
+            message.error(`${t("downloadError")}: ${(error as any).message}`);
+            openNotification(`${t("downloadError")}: ${(error as any).message}`);
         }
     };
     const uploadProps = {
@@ -168,20 +194,21 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
         getFileList();
     }, [siteId, driveId, taskId]);
     return (
-        <Space direction="vertical" size="small" style={{ width: '100%' }}>
 
+        <Space direction="vertical" size="small" className="w-full">
+            {contextHolder}
 
             <Collapse size="small" ghost>
                 <Panel
                     header={
                         <Space>
                             <FileTextOutlined />
-                            <Text style={{ fontSize: '12px' }}>
-                                Files ({fileList.length})
+                            <Text className="text-xs">
+                                {t("files")} ({fileList.length})
                             </Text>
                             <Upload {...uploadProps}>
                                 <Button icon={<UploadOutlined />} loading={loading} size="small">
-                                    Upload
+                                    {t("upload")}
                                 </Button>
                             </Upload>
                         </Space>
@@ -211,7 +238,7 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
                                     ]}
                                 >
                                     <List.Item.Meta
-                                        title={<Text style={{ fontSize: '12px' }}>{file.name}</Text>}
+                                        title={<Text className="text-xs">{file.name}</Text>}
                                         description={
                                             <Text type="secondary" style={{ fontSize: '11px' }}>
                                                 {(file.size / 1024).toFixed(1)} KB
@@ -222,8 +249,8 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
                             )}
                         />
                     ) : (
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                            Chưa có file nào
+                        <Text type="secondary" className="text-xs">
+                            {t("nofiles")}
                         </Text>
                     )}
                 </Panel>
