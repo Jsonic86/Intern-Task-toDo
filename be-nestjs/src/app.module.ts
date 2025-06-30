@@ -6,13 +6,15 @@ import config from './config/definedConfig';
 import { Task } from './entities/task.entity';
 import { TaskModule } from './task/task.module';
 import { SharePointModule } from './sharepoint/sharepoint.module';
+import { FileEntity } from './entities/file.entity';
 
 @Module({
   imports: [
     MikroOrmModule.forRoot(config),
     Task,
     TaskModule,
-    SharePointModule
+    SharePointModule,
+    FileEntity
   ],
   controllers: [AppController],
   providers: [AppService],

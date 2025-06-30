@@ -8,6 +8,7 @@ import { get } from "@pnp/queryable";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import type { RootState } from "../../store";
+import { sharepointService } from "../../service/todo/sharepoint-service";
 
 const { Panel } = Collapse;
 const { Text } = Typography;
@@ -38,114 +39,36 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
         });
     };
     const uploadFile = async (file: File) => {
-        if (!siteId || !driveId) {
-            message.error(t("error.waiting"));
-            openNotification(t("error.waiting"));
-            return false;
-        }
-
-        setLoading(true);
-        try {
-            const response = await instance.acquireTokenSilent({
-                ...loginRequest,
-                account: accounts[0],
-            });
-
-            // Tự động tạo folder với tên taskId
-            const createFolderUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root/children`;
-            await fetch(createFolderUrl, {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${response.accessToken}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    name: taskId.trim(),
-                    folder: {},
-                    "@microsoft.graph.conflictBehavior": "replace"
-                }),
-            });
-
-            // Upload file
-            const uploadUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root:/${taskId}/${file.name}:/content`;
-            const fileContent = await file.arrayBuffer();
-            const uploadResult = await fetch(uploadUrl, {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${response.accessToken}`,
-                    "Content-Type": file.type,
-                },
-                body: fileContent,
-            });
-
-            if (uploadResult.ok) {
-                message.success(t("upload.success"));
-                openNotification(t("upload.success"));
-                getFileList(); // Refresh file list
-                return true;
-            } else {
-                const errorData = await uploadResult.json();
-                message.error(`${t("upload.fail")}: ${errorData.error.message}`);
-                openNotification(`${t("upload.fail")}: ${errorData.error.message}`);
-                return false;
-            }
-        } catch (error) {
-            message.error(`${t("upload.error")}: ${(error as any).message}`);
-            openNotification(`${t("upload.error")}: ${(error as any).message}`);
-            return false;
-        } finally {
-            setLoading(false);
+        const { data } = await sharepointService.uploadFile(file, taskId);
+        if (data.success) {
+            message.success(t("uploadSuccess"));
+            openNotification(t("uploadSuccess"));
+            getFileList(); // Refresh file list after upload
         }
     };
 
     const getFileList = async () => {
-        if (!siteId || !driveId || !taskId) return;
 
-        try {
-            const response = await instance.acquireTokenSilent({
-                ...loginRequest,
-                account: accounts[0],
-            });
+        const { data } = await sharepointService.getFiles(taskId);
+        console.log("response", data);
+        if (data) {
 
-            const filesUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root:/${taskId}:/children`;
-            const filesResult = await fetch(filesUrl, {
-                headers: { Authorization: `Bearer ${response.accessToken}` },
-            });
-
-            if (filesResult.ok) {
-                const filesData = await filesResult.json();
-                setFileList(filesData.value || []);
-            } else {
-                setFileList([]);
-            }
-        } catch (error) {
-            console.error("Lỗi lấy danh sách file:", error);
+            setFileList(data || []);
+        } else {
+            setFileList([]);
         }
     };
 
-    const deleteFile = async (fileId: string) => {
+    const deleteFile = async (fileName: string) => {
         try {
-            const { accessToken } = await instance.acquireTokenSilent({
-                ...loginRequest,
-                account: accounts[0],
-            });
+            const response = await sharepointService.deleteFile(fileName, taskId);
 
-            const url =
-                `https://graph.microsoft.com/v1.0/sites/${siteId}` +
-                `/drives/${driveId}/items/${fileId}`;   // ⚠️ bỏ /content
-
-            const res = await fetch(url, {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${accessToken}` },
-            });
-
-            if (res.status === 204) {
-                getFileList(); // Refresh file list
+            if (response.status === 200 || response.status === 204) {
                 message.success(t("deleteSuccess"));
                 openNotification(t("deleteSuccess"));
+                getFileList(); // Refresh file list after deletion
             } else {
-                const err = await res.json().catch(() => res.statusText);
-                throw new Error(err);
+                throw new Error(response.message || t("deleteError"));
             }
         } catch (e) {
             console.error(e);
@@ -153,20 +76,30 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
             openNotification(t("deleteError"));
         }
     };
-    const downloadFile = async (fileId: string, fileName: string) => {
+    const downloadFile = async (fileName: string) => {
         try {
-            const response = await instance.acquireTokenSilent({
-                ...loginRequest,
-                account: accounts[0],
-            });
+            const response = await sharepointService.downloadFile(fileName, taskId);
 
-            const deleteUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/items/${fileId}/content`;
-            const fileResponse = await fetch(deleteUrl, {
-                headers: { Authorization: `Bearer ${response.accessToken}` },
-            });
+            if (response && response.data.content) {
+                // If response.content is base64 string, clean and decode it first
+                let base64Data = response.data.content;
 
-            if (fileResponse.ok) {
-                const blob = await fileResponse.blob();
+                // Remove data URL prefix if exists (e.g., "data:application/pdf;base64,")
+                if (base64Data.includes(',')) {
+                    base64Data = base64Data.split(',')[1];
+                }
+
+                // Clean base64 string - remove any invalid characters
+                base64Data = base64Data.replace(/[^A-Za-z0-9+/=]/g, '');
+
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray]);
+
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -177,6 +110,8 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
                 document.body.removeChild(a);
                 message.success(t("downloadSuccess"));
                 openNotification(t("downloadSuccess"));
+            } else {
+                throw new Error("No file content received");
             }
         } catch (error) {
             message.error(`${t("downloadError")}: ${(error as any).message}`);
@@ -227,21 +162,21 @@ const Profile = ({ taskId, instance, accounts, siteId, driveId, profileData }: {
                                             size="small"
                                             type="text"
                                             icon={<DownloadOutlined />}
-                                            onClick={() => downloadFile(file.id, file.name)}
+                                            onClick={() => downloadFile(file.Name)}
                                         />,
                                         <Button
                                             size="small"
                                             type="text"
                                             icon={<DeleteOutlined />}
-                                            onClick={() => deleteFile(file.id)}
+                                            onClick={() => deleteFile(file.Name)}
                                         />
                                     ]}
                                 >
                                     <List.Item.Meta
-                                        title={<Text className="text-xs">{file.name}</Text>}
+                                        title={<Text className="text-xs">{file.Name}</Text>}
                                         description={
                                             <Text type="secondary" style={{ fontSize: '11px' }}>
-                                                {(file.size / 1024).toFixed(1)} KB
+                                                {(file.Length / 1024).toFixed(1)} KB
                                             </Text>
                                         }
                                     />
